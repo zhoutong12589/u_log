@@ -1,6 +1,8 @@
 
 #include <iostream>
 #include "logging.h"
+#include "queue_T.h"
+#include "configurator.h"
 #include <unistd.h>
 
 using namespace std;

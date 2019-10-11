@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <list>
 #include <string>
+#include <set>
 #include <assert.h>
 
 #ifndef _H_LOGGING_
@@ -34,6 +35,7 @@ enum CLogging_split_mode
     SPLIT_SIZE
 };
 
+//日志模块
 class CLogging
 {
 public:
@@ -41,7 +43,7 @@ public:
     static CLogging* GetInstance();
 
     //初始化配置文件，必须调用，可以不给配置文件，使用默认参数，之后才可以通过set函数来改变各个参数
-    int init(const char *cfg_file = nullptr);
+    int init();
 
     //设置日志级别，可随时改变
     int set_level(CLogging_level level = LOG_INFO);
@@ -77,6 +79,9 @@ private:
     //在初始化时获取配置的文件夹下的日志文件的数量和最新文件的大小
     int get_info();
 
+    
+
+
     static const int MSG_SZ;
     
     static CLogging*        g_logging;
@@ -90,7 +95,8 @@ private:
     list<string>            m_vfiles;          //目前保存的文件名，用于在删除最开始的文件时快速超找文件名
     
     FILE*                   m_file;            //日志文件的句柄
-    int                     m_currentsize;        //目前文件的大小，根据初始时获取的大小和写入大小累加获得
+    int                     m_currentsize;     //目前文件的大小，根据初始时获取的大小和写入大小累加获得
+
 };
 
 //方便使用的宏定义

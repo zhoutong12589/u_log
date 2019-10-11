@@ -8,6 +8,7 @@
 #include <dirent.h>
 #include <thread>
 #include <mutex>
+#include <unistd.h>
 
 namespace COMM
 {
@@ -16,23 +17,23 @@ namespace COMM
 
 CLogging* CLogging::g_logging = new CLogging;      //初始化static变量
 const int CLogging::MSG_SZ = 512;                  //目前允许的一条日志的最大长度
-std::mutex g_mutex;                                // 线程互斥锁
+mutex g_log_mutex;                                 // 线程互斥锁
 
 char* STR_LEVEL(CLogging_level l){
     if(l == LOG_FATAL) 
-        return (char*)"LOG_FATAL";
+        return (char*)"FATAL";
     else if(l == LOG_ERROR) 
-        return  (char*)"LOG_ERROR"; 
+        return  (char*)"ERROR"; 
     else if(l == LOG_WARN) 
-        return  (char*)"LOG_WARN"; 
+        return  (char*)"WARN"; 
     else if(l == LOG_INFO) 
-        return  (char*)"LOG_INFO";
+        return  (char*)"INFO";
     else if(l == LOG_DEBUG) 
-        return  (char*)"LOG_DEBUG"; 
+        return  (char*)"DEBUG"; 
     else if(l == LOG_NONE) 
-        return  (char*)"LOG_NONE"; 
+        return  (char*)"NONE"; 
     else 
-        return  (char*)"NONE";
+        return  (char*)"N";
 };
 
 CLogging::CLogging()
@@ -40,6 +41,9 @@ CLogging::CLogging()
     m_file = nullptr;
     m_currentsize = 0;
     m_jduge_flag = false;
+
+
+
 }
 
 CLogging::~CLogging()
@@ -56,25 +60,27 @@ CLogging* CLogging::GetInstance()
 }
 
 //初始化配置文件
-int CLogging::init(const char *cfg_file)
+int CLogging::init()
 {
-    if(nullptr == cfg_file)
-    {
-        //给定默认配置
-        m_level = LOG_INFO;
-        strcpy(m_path, ".");
-        strcpy(m_name, "main.log");
-        m_mode = SPLIT_HOURS;
-        m_size = 10*1024*1024;
-        m_filenum = 16 + 1;
+    //给定默认配置
+    m_level = LOG_INFO;
+    strcpy(m_path, ".");
 
-        //根据配置的m_path获取文件夹下有哪些文件
-        get_info();
-    }
-    else
+    //获取程序名
+    char nameBuf[512] = {0};
+    if( readlink("/proc/self/exe", nameBuf,512) <=0 )
     {
-        //读取配置文件的参数
+            return -1;
     }
+    char *name = basename(nameBuf);
+    sprintf(m_name, "%s.log", name);
+    
+    m_mode = SPLIT_HOURS;
+    m_size = 10*1024*1024;
+    m_filenum = 16 + 1;
+
+    //根据配置的m_path获取文件夹下有哪些文件
+    get_info();
     
     return 0;
 }
@@ -132,9 +138,10 @@ void CLogging::write(const char* file, int line, CLogging_level level, const cha
     if(nullptr == m_file)
     {
         //创建文件名需要添加日期后缀
-        struct tm* ts = localtime(&tv.tv_sec);
+        struct tm ts;
+        localtime_r(&tv.tv_sec, &ts);
         char last_name[64];
-        sprintf(last_name, "%4d_%02d_%02d_%02d_%02d_%02d", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday, ts->tm_hour, ts->tm_min, ts->tm_sec);
+        sprintf(last_name, "%4d_%02d_%02d_%02d_%02d_%02d", ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
 
         char file_name[512];
         int len = strlen(m_path);
@@ -189,8 +196,10 @@ void CLogging::write(const char* file, int line, CLogging_level level, const cha
     }
     
     //函数定义为不安全的，所以此处使用不可重入的函数即可
-    struct tm* ts = localtime(&tv.tv_sec);
-    ret = fprintf(m_file, "[%4d-%02d-%02d %02d:%02d:%02d,%03d - %16s:%04d - %10s] %s \n", ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday, ts->tm_hour, ts->tm_min, ts->tm_sec,
+    struct tm ts;
+    localtime_r(&tv.tv_sec, &ts);
+    ret = fprintf(m_file, "[%4d-%02d-%02d %02d:%02d:%02d,%03d - %16s:%04d - %10s] %s \n", 
+                        ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
                         int(tv.tv_usec / 1000), file + pre + 1, line, STR_LEVEL(level), msg);
     if (ret < 0)
     {
@@ -202,7 +211,7 @@ void CLogging::write(const char* file, int line, CLogging_level level, const cha
     //根据累计写入大小
     m_currentsize += ret;
     //根据文件模式检查是否写新文件
-    if(judge_mode(ts->tm_hour, ts->tm_min))
+    if(judge_mode(ts.tm_hour, ts.tm_min))
     {
         //关闭文件句柄，下次写入新的文件
         fclose(m_file);
@@ -217,7 +226,7 @@ void CLogging::write(const char* file, int line, CLogging_level level, const cha
 void CLogging::write_s(const char* file, int line, CLogging_level level, const char* format, ...)
 {
     //提供线程互斥
-    std::lock_guard<std::mutex> lock(g_mutex);
+    std::lock_guard<std::mutex> lock(g_log_mutex);
     va_list args;
 
     va_start(args, format);
@@ -337,5 +346,7 @@ int CLogging::get_info()
 
     return 0;
 }
+
+
 
 }
