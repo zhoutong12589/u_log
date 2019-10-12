@@ -16,7 +16,7 @@ using namespace std;
 //日志级别
 enum CLogging_level
 {
-    LOG_FATAL = 1,      //关键错误，写日志并调用assert
+    LOG_FATAL = 1,      //关键错误
     LOG_ERROR = 100,    //错误，一般是需要人工处理的错误才用这个级别，但是程序可以继续运行
     LOG_WARN = 200,     //警告，一般错误，不影响程序运行，但是认为是外部引起的异常，不需要处理，需要注意
     LOG_INFO = 300,     //一般信息
@@ -48,7 +48,7 @@ public:
     //设置日志级别，可随时改变
     int set_level(CLogging_level level = LOG_INFO);
 
-    //设置日志的最大保存数量
+    //设置日志的最大保存数量，可随时改变
     int set_filenum(int num = 16);
 
     //设置日志路径，只允许在初始化时调用
@@ -58,7 +58,7 @@ public:
     int set_logname(const char* name = (char*)".");
 
     //设置切分模式，默认为按小时分割，此时切分而文件大小参数即使设置了也无效
-    //在设置了切分模式为SPLIT_SIZE时，size参数才有效，默认10M
+    //在设置了切分模式为SPLIT_SIZE时，size参数才有效，默认10M，最小为1M，如果设置值小于1M，则自动置为1M
     //只允许在初始化时调用
     int set_split_mode(CLogging_split_mode mode = SPLIT_HOURS, int size = 10*1024*1024);
 
@@ -113,7 +113,6 @@ private:
 //方便使用的宏定义
 #define FLOG(format, args...) do{ \
     CLogging::GetInstance()->write_s(__FILE__, __LINE__, LOG_FATAL, format, args ); \
-    assert(0); \
 }while(0); 
 
 #define ELOG(format, args...) do{ \

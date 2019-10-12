@@ -40,28 +40,30 @@ int main()
 
     //初始化日志
     CLogging::GetInstance()->init();
+    CLogging::GetInstance()->set_filenum(3);
+    CLogging::GetInstance()->set_logname("thelog");
+    CLogging::GetInstance()->set_logpath(".");
+    CLogging::GetInstance()->set_split_mode(SPLIT_SIZE, 1024*1024);
+    //获取日志字符串
+    char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_INFO, "%d %s", 12, "444");
+    cout<<msg<<endl;
 
-    //最直接的模式写日志
-    CLogging::GetInstance()->write(__FILE__, __LINE__, LOG_INFO, "%d %s", 12, "444");
     //使用宏定义写
     ILOG("%d %s", 12, "444");
     WLOG("%08d", 4654);
     //开启日志的队列
     CLog_worker::GetInstance()->open();
-    //获取日志字符串
-    char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_INFO, "%d %s", 12, "444");
-    cout<<msg<<endl;
+    
     //向队列中写入
 
     int count  = 0;
-    while(1)
+    for(int n = 0; n < 10000; ++n)
     {
-        cout<<"111"<<endl;
-        ILOGT("%d", count++);
-        sleep(1);
+        ILOGT(true, "%d", count++);
+        usleep(10);
     }
-    
+    FLOGT(true, "%d", count++);
 
-    sleep(1);
+    CLog_worker::GetInstance()->stop();
     return 0;
 }

@@ -25,39 +25,45 @@ private:
 };
 
 
-//方便日常使用的宏定义
-#define FLOGT(format, args...) do{ \
+//方便日常使用的宏定义，pt标识是否打印到屏幕
+#define FLOGT(pt, format, args...) do{ \
     char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_FATAL, format, args ); \
+    if(pt){ cout<<msg; } \
     CLog_task* task = new CLog_task(msg); \
     CLog_worker::GetInstance()->put(task); \
 }while(0); 
 
-#define ELOGT(format, args...) do{ \
+#define ELOGT(pt, format, args...) do{ \
     char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_ERROR, format, args ); \
+    if(pt){ cout<<msg; } \
     CLog_task* task = new CLog_task(msg); \
     CLog_worker::GetInstance()->put(task); \
 }while(0); 
 
-#define WLOGT(format, args...) do{ \
+#define WLOGT(pt, format, args...) do{ \
     char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_WARN, format, args ); \
+    if(pt){ cout<<msg; } \
     CLog_task* task = new CLog_task(msg); \
     CLog_worker::GetInstance()->put(task); \
 }while(0); 
 
-#define ILOGT(format, args...) do{ \
+#define ILOGT(pt, format, args...) do{ \
     char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_INFO, format, args ); \
+    if(pt){ cout<<msg; } \
     CLog_task* task = new CLog_task(msg); \
     CLog_worker::GetInstance()->put(task); \
 }while(0); 
 
-#define DLOGT(format, args...) do{ \
+#define DLOGT(pt, format, args...) do{ \
     char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_DEBUG, format, args ); \
+    if(pt){ cout<<msg; } \
     CLog_task* task = new CLog_task(msg); \
     CLog_worker::GetInstance()->put(task); \
 }while(0); 
 
-#define NLOGT(format, args...) do{ \
+#define NLOGT(pt, format, args...) do{ \
     char* msg = CLogging::GetInstance()->strformat(__FILE__, __LINE__, LOG_NONE, format, args ); \
+    if(pt){ cout<<msg; } \
     CLog_task* task = new CLog_task(msg); \
     CLog_worker::GetInstance()->put(task); \
 }while(0); 

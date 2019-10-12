@@ -77,7 +77,7 @@ int CLogging::init()
     
     m_mode = SPLIT_HOURS;
     m_size = 10*1024*1024;
-    m_filenum = 16 + 1;
+    m_filenum = 16;
 
     //根据配置的m_path获取文件夹下有哪些文件
     get_info();
@@ -94,7 +94,8 @@ int CLogging::set_level(CLogging_level level)
 
 int CLogging::set_filenum(int num)
 {
-    m_filenum = num + 1;
+    m_filenum = num;
+    clean(num);
     return 0;
 }
 
@@ -110,6 +111,7 @@ int CLogging::set_logpath(const char* path)
 int CLogging::set_logname(const char* name)
 {
     strcpy(m_name, name);
+    get_info();
     return 0;
 }
 
@@ -117,7 +119,15 @@ int CLogging::set_logname(const char* name)
 int CLogging::set_split_mode(CLogging_split_mode mode, int size)
 {
     m_mode = mode;
-    m_size = size;
+    if(size <= 1024*1024)
+    {
+        m_size = 1024* 1024;
+    }
+    else
+    {
+        m_size = size;
+    }
+    
     return 0;
 }
 
@@ -211,6 +221,7 @@ void CLogging::write_str(const char* msg)
         cout<<"CLogging::write_str fwrite error="<<errno<<endl;
         return;
     }
+    m_currentsize += ret;
     fflush(m_file);
 }
 
@@ -359,7 +370,18 @@ int CLogging::get_info()
         int res = strncmp(m_name, ptr->d_name, strlen(m_name));
         if(0 == res)
         {
-            m_vfiles.push_back(ptr->d_name);
+            //格式化全路径
+            char file_name[256];
+            int len = strlen(m_path);
+            if('/' == m_path[len - 1])
+            {
+                sprintf(file_name, "%s%s", m_path, ptr->d_name);
+            }
+            else
+            {
+                sprintf(file_name, "%s/%s", m_path, ptr->d_name);
+            }
+            m_vfiles.push_back(file_name);
         }
     }
     closedir(dir);//关闭目录指针
@@ -368,7 +390,7 @@ int CLogging::get_info()
     m_vfiles.sort();
 
     //在获取文件后对文件进行数量限制和清理，此处-1是因为马上要创建一个新的文件
-    clean(m_filenum - 1);
+    clean(m_filenum);
 
     return 0;
 }

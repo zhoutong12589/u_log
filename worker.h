@@ -13,7 +13,8 @@ namespace COMM
 
 using namespace std;
 
-
+//运行线程的基类，如果想打造一个缓冲队列，则继承该类，可以重写run，来达到特殊的目的
+//添加的任务都继承自CTask_I，在构造函数中实现数据的拷贝，实现run来实际执行
 class CWorker
 {
 public:

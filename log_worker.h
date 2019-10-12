@@ -7,6 +7,7 @@
 namespace COMM
 {
 
+//log的处理队列
 class CLog_worker : public CWorker
 {
 public:
