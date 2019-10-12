@@ -65,13 +65,22 @@ public:
     //非线程安全的写日志，每次启动都创建新的文件
     //目前每次都有fflush，对于效率的影响暂时未知
     void write(const char* file, int line, CLogging_level level, const char* format, ...);
+    
 
-    //线程安全的写日志
+    //线程安全的写日志，在非线程安全的线程上加入线程锁
     void write_s(const char* file, int line, CLogging_level level, const char* format, ...);
 
+    //将字符串写入文件
+    void write_str(const char* msg);
+
+    //格式化字符串
+    char* strformat(const char* file, int line, CLogging_level level, const char* format, ...);
 private:
     CLogging();
     
+    //为了适应可变参数传递而做的重载，实际写入文件的地方
+    void write(const char* file, int line, CLogging_level level, const char* format, va_list args);
+
     //根据日志模式判断日志是否需要更新
     bool judge_mode(int hour, int mins);
     //清理过期文件，num指定最大数量，在启动时要检查的数量为最大数量-1，因为马上要创建新的文件
@@ -79,8 +88,10 @@ private:
     //在初始化时获取配置的文件夹下的日志文件的数量和最新文件的大小
     int get_info();
 
-    
-
+    //创建日志文件
+    int create_file(const struct tm ts);
+    //获取当前时间
+    int get_time(struct tm &ts, suseconds_t &usec);
 
     static const int MSG_SZ;
     
@@ -101,28 +112,28 @@ private:
 
 //方便使用的宏定义
 #define FLOG(format, args...) do{ \
-    CLogging::GetInstance()->write(__FILE__, __LINE__, LOG_FATAL, format, args ); \
+    CLogging::GetInstance()->write_s(__FILE__, __LINE__, LOG_FATAL, format, args ); \
     assert(0); \
 }while(0); 
 
 #define ELOG(format, args...) do{ \
-    CLogging::GetInstance()->write(__FILE__, __LINE__, LOG_ERROR, format, args ); \
+    CLogging::GetInstance()->write_s(__FILE__, __LINE__, LOG_ERROR, format, args ); \
 }while(0); 
 
 #define WLOG(format, args...) do{ \
-    CLogging::GetInstance()->write(__FILE__, __LINE__, LOG_WARN, format, args ); \
+    CLogging::GetInstance()->write_s(__FILE__, __LINE__, LOG_WARN, format, args ); \
 }while(0); 
 
 #define ILOG(format, args...) do{ \
-    CLogging::GetInstance()->write(__FILE__, __LINE__, LOG_INFO, format, args ); \
+    CLogging::GetInstance()->write_s(__FILE__, __LINE__, LOG_INFO, format, args ); \
 }while(0); 
 
 #define DLOG(format, args...) do{ \
-    CLogging::GetInstance()->write(__FILE__, __LINE__, LOG_DEBUG, format, args ); \
+    CLogging::GetInstance()->write_s(__FILE__, __LINE__, LOG_DEBUG, format, args ); \
 }while(0); 
 
 #define NLOG(format, args...) do{ \
-    CLogging::GetInstance()->write(__FILE__, __LINE__, LOG_NONE, format, args ); \
+    CLogging::GetInstance()->write_s(__FILE__, __LINE__, LOG_NONE, format, args ); \
 }while(0); 
 
 } // namespace COMM

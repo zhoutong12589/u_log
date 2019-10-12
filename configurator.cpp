@@ -54,7 +54,7 @@ int CConfigurator::get_conf(map<string, string> &cfg)
         //只能在注释中出现中文，这也是为什么先判断注释
         //如果直接给中文去前后的空白，可能出现问题
         int npos = -1;
-        for(int n = 0; n < strlen(line); ++n)
+        for(unsigned int n = 0; n < strlen(line); ++n)
         {
             if(line[n] == '#')
             {
@@ -86,7 +86,7 @@ int CConfigurator::get_conf(map<string, string> &cfg)
 
         //3、commad中的应该都是格式正确
         npos = -1;
-        for(int n = 0; n < strlen(command); ++n)
+        for(unsigned int n = 0; n < strlen(command); ++n)
         {
             if(command[n] == '=')
             {

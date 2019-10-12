@@ -13,35 +13,62 @@ using namespace std;
 
 
 
-mutex g_queue_mutex;    
+static mutex g_queue_mutex;    
 
 //队列模板
 template<class T>
 class CQueue_T
 {
 public:
-    CQueue_T(){}
+    CQueue_T()
+    {
+        m_max_len = 1024;
+    }
     ~CQueue_T(){}
     int put(T* t)
     {
         //提供线程互斥
         std::lock_guard<std::mutex> lock(g_queue_mutex);
-        m_queue.push_back(t);
-        return 0;
+        if(m_queue.size() < m_max_len)
+        {
+            m_queue.push_back(t);
+            return 0;
+        }
+        else
+        {
+            return -1;
+        }
     };
     T* get()
     {
         std::lock_guard<std::mutex> lock(g_queue_mutex);
-        T* t = m_queue.pop_front();
-        return t;
+        if(m_queue.size() > 0)
+        {
+            T* t = m_queue.front();
+            m_queue.pop_front();
+            return t;
+        }
+        else
+        {
+            return nullptr;
+        }
+        
     };
     int length()
     {
+        std::lock_guard<std::mutex> lock(g_queue_mutex);
         return m_queue.size();
     };
+    
+    int set_max_len(int max = 1024)
+    {
+        m_max_len = max;
 
+        return 0;
+    }
 private:
     list<T*> m_queue;
+    int m_max_len;        //队列最大长度
 };
 
 

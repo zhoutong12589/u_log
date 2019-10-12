@@ -17,7 +17,7 @@ namespace COMM
 
 CLogging* CLogging::g_logging = new CLogging;      //初始化static变量
 const int CLogging::MSG_SZ = 512;                  //目前允许的一条日志的最大长度
-mutex g_log_mutex;                                 // 线程互斥锁
+static mutex g_log_mutex;                          // 线程互斥锁
 
 char* STR_LEVEL(CLogging_level l){
     if(l == LOG_FATAL) 
@@ -121,86 +121,47 @@ int CLogging::set_split_mode(CLogging_split_mode mode, int size)
     return 0;
 }
 
-//非线程安全的写日志
 void CLogging::write(const char* file, int line, CLogging_level level, const char* format, ...)
 {
-    struct timeval tv;
-    int ret= gettimeofday(&tv, NULL);
-    if(0 != ret)
-    {
-        ret= gettimeofday(&tv, NULL);
-        if (0 != ret)
-        {
-            cout<<"CLogging::write gettimeofday1 error="<<errno<<endl;
-            return;
-        }
-    }
-    if(nullptr == m_file)
-    {
-        //创建文件名需要添加日期后缀
-        struct tm ts;
-        localtime_r(&tv.tv_sec, &ts);
-        char last_name[64];
-        sprintf(last_name, "%4d_%02d_%02d_%02d_%02d_%02d", ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
-
-        char file_name[512];
-        int len = strlen(m_path);
-        if('/' == m_path[len - 1])
-        {
-            sprintf(file_name, "%s%s.%s", m_path, m_name, last_name);
-        }
-        else
-        {
-            sprintf(file_name, "%s/%s.%s", m_path, m_name, last_name);
-        }
-        //将文件放入m_vfiles，以记录目前保留了多少文件
-        m_vfiles.push_back(file_name);
-
-        m_file = fopen(file_name, "a");
-        if(NULL == m_file)
-        {
-            cout<<"CLogging::write fopen error="<<errno<<endl;
-            return;
-        }
-    }
-    
-    //日志内容写入字符串
-    char msg[MSG_SZ];
     va_list args;
-
     va_start(args, format);
-    vsnprintf(msg, MSG_SZ, format, args);
-    va_end(args);
+    
+    write(file, line, level, format, args);
 
-    //获取当前时间，尝试两次
-    ret= gettimeofday(&tv, NULL);
+    va_end(args);
+}
+
+//非线程安全的写日志
+void CLogging::write(const char* file, int line, CLogging_level level, const char* format, va_list args)
+{
+    //1、获取当前时间
+    struct tm ts;
+    suseconds_t usec;
+    int ret = get_time(ts, usec);
     if(0 != ret)
     {
-        ret= gettimeofday(&tv, NULL);
-        if (0 != ret)
-        {
-            cout<<"CLogging::write gettimeofday2 error="<<errno<<endl;
-            return;
-        }
+        return;
     }
-    //寻找file中的倒数第一个/的位置，后面的即为文件名
-    int len = strlen(file);
-    int pre = 0;
-    for(int n = len - 1; n >= 0; --n)
+    //2、创建文件
+    ret = create_file(ts);  
+    if(0 != ret)
     {
-        if('/' == file[n])
-        {
-            pre = n;
-            break;
-        }
+        return;
     }
+    //3、日志内容写入字符串
+    char msg[MSG_SZ];
+    vsnprintf(msg, MSG_SZ, format, args);
+
+
+    //4、获取文件名
+    char file_name[128];
+    strcpy(file_name, file);
+    char* name = basename(file_name);
     
-    //函数定义为不安全的，所以此处使用不可重入的函数即可
-    struct tm ts;
-    localtime_r(&tv.tv_sec, &ts);
-    ret = fprintf(m_file, "[%4d-%02d-%02d %02d:%02d:%02d,%03d - %16s:%04d - %10s] %s \n", 
+    //5、格式化写入文件
+    ret = fprintf(m_file, "[%4d-%02d-%02d %02d:%02d:%02d,%03d - %s:%04d - %5s] %s\n", 
                         ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
-                        int(tv.tv_usec / 1000), file + pre + 1, line, STR_LEVEL(level), msg);
+                        int(usec / 1000), name, line, STR_LEVEL(level), msg);
     if (ret < 0)
     {
         cout<<"CLogging::write vfprintf error="<<errno<<endl;
@@ -208,17 +169,8 @@ void CLogging::write(const char* file, int line, CLogging_level level, const cha
     }
     fflush(m_file);
     
-    //根据累计写入大小
+    //6、根据累计写入大小
     m_currentsize += ret;
-    //根据文件模式检查是否写新文件
-    if(judge_mode(ts.tm_hour, ts.tm_min))
-    {
-        //关闭文件句柄，下次写入新的文件
-        fclose(m_file);
-        m_file = nullptr;
-        //清理过期文件
-        clean(m_filenum);
-    }
 
 }
 
@@ -233,6 +185,80 @@ void CLogging::write_s(const char* file, int line, CLogging_level level, const c
     write(file, line, level, format, args);
     va_end(args);
     
+}
+
+void CLogging::write_str(const char* msg)
+{
+    //1、获取当前时间
+    struct tm ts;
+    suseconds_t usec;
+    int ret = get_time(ts, usec);
+    if(0 != ret)
+    {
+        return;
+    }
+    //2、创建文件
+    ret = create_file(ts);  
+    if(0 != ret)
+    {
+        return;
+    }
+
+    ret = fwrite(msg, 1, strlen(msg), m_file);
+    delete msg;
+    if(ret < 0)
+    {
+        cout<<"CLogging::write_str fwrite error="<<errno<<endl;
+        return;
+    }
+    fflush(m_file);
+}
+
+//格式化字符串
+char* CLogging::strformat(const char* file, int line, CLogging_level level, const char* format, ...)
+{
+    //1、获取当前时间
+    struct tm ts;
+    suseconds_t usec;
+    int ret = get_time(ts, usec);
+    if(0 != ret)
+    {
+        return nullptr;
+    }
+
+    //2、获取文件名
+    char file_name[128];
+    strcpy(file_name, file);
+    char* name = basename(file_name);
+
+    //3、将日志的头部信息写入字符串
+    char* msg = new char[MSG_SZ];
+    int len1 = snprintf(msg, MSG_SZ, "[%4d-%02d-%02d %02d:%02d:%02d,%03d - %s:%04d - %5s] ", 
+                        ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
+                        int(usec / 1000), name, line, STR_LEVEL(level) );
+    if(len1 < 0)
+    {
+        delete msg;
+        return nullptr;
+    }
+    
+    //4、将日志内容拼接到后面
+    va_list args;
+
+    va_start(args, format);
+    int len2 = vsnprintf(msg + len1, MSG_SZ - ret, format, args);
+    va_end(args);
+
+    if(len2 < 0)
+    {
+        delete msg;
+        return nullptr;
+    }
+    
+    int len = len1 + len2;
+    msg[len] = '\n';
+    msg[len + 1] = '\0';
+    return msg;
 }
 
 bool CLogging::judge_mode(int hour, int mins)
@@ -347,6 +373,69 @@ int CLogging::get_info()
     return 0;
 }
 
+
+int CLogging::create_file(const struct tm ts)
+{
+    //根据文件模式检查是否写新文件
+    if(judge_mode(ts.tm_hour, ts.tm_min))
+    {
+        //关闭文件句柄，下次写入新的文件
+        fclose(m_file);
+        m_file = nullptr;
+        //清理过期文件
+        clean(m_filenum);
+    }
+
+    if(nullptr == m_file)
+    {
+        //创建文件名需要添加日期后缀
+        char last_name[64];
+        sprintf(last_name, "%4d_%02d_%02d_%02d_%02d_%02d", ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
+
+        char file_name[512];
+        int len = strlen(m_path);
+        if('/' == m_path[len - 1])
+        {
+            sprintf(file_name, "%s%s.%s", m_path, m_name, last_name);
+        }
+        else
+        {
+            sprintf(file_name, "%s/%s.%s", m_path, m_name, last_name);
+        }
+        //将文件放入m_vfiles，以记录目前保留了多少文件
+        m_vfiles.push_back(file_name);
+
+        m_file = fopen(file_name, "a");
+        if(NULL == m_file)
+        {
+            cout<<"CLogging::write fopen error="<<errno<<endl;
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int CLogging::get_time(struct tm &ts, suseconds_t &usec)
+{
+    //尝试两次获取，如果两次都不成功，则标识失败
+    struct timeval tv;
+    int ret= gettimeofday(&tv, NULL);
+    if(0 != ret)
+    {
+        ret= gettimeofday(&tv, NULL);
+        if(0 != ret)
+        {
+            cout<<"CLogging::write gettimeofday1 error="<<errno<<endl;
+            return -1; 
+        }
+        
+    }
+    //struct tm ts;
+    localtime_r(&tv.tv_sec, &ts);
+    usec = tv.tv_usec;
+    return 0;
+}
 
 
 }
